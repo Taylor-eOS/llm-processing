@@ -1,12 +1,13 @@
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer, StoppingCriteria, StoppingCriteriaList
+from transformers import AutoModelForCausalLM, AutoTokenizer, StoppingCriteria, StoppingCriteriaList
 import settings
 
 def load_model_and_tokenizer():
     model = AutoModelForCausalLM.from_pretrained(
         "trillionlabs/Trillion-7B-preview",
         torch_dtype=torch.bfloat16,
-        device_map="auto")
+        device_map="auto"
+    )
     tokenizer = AutoTokenizer.from_pretrained("trillionlabs/Trillion-7B-preview")
     return model, tokenizer
 
@@ -21,7 +22,7 @@ class StopOnTokens(StoppingCriteria):
 
 def get_stop_sequences(tokenizer):
     stop_strings = ["\nYou:", "\nUser:", tokenizer.eos_token]
-    return [tokenizer.encode(s, add_special_tokens=False) for s in stop_strings], stop_strings
+    return [tokenizer.encode(s, add_special_tokens=False) for s in stop_strings]
 
 def get_gen_kwargs(tokenizer, stop_sequences):
     return {
@@ -31,42 +32,41 @@ def get_gen_kwargs(tokenizer, stop_sequences):
         "do_sample": True,
         "temperature": 0.7,
         "top_p": 0.9,
-        "stopping_criteria": StoppingCriteriaList([StopOnTokens(stop_sequences)]),}
+        "stopping_criteria": StoppingCriteriaList([StopOnTokens(stop_sequences)]),
+    }
 
-class CaptureStreamer(TextStreamer):
-    def __init__(self, tokenizer, skip_prompt=True, stop_str=None):
-        super().__init__(tokenizer, skip_prompt=skip_prompt, stop_str=stop_str)
-        self.output = []
-    def on_text(self, text, **kwargs):
-        print(text, end="", flush=True)
-        self.output.append(text)
-
-def process_line(line, model, tokenizer, gen_kwargs, stop_strs):
+def process_line(line, model, tokenizer, gen_kwargs):
     base = (
         "You are a rewriting model. Output only the rewritten text, "
         "no explanations or prefixes.\n"
         f"{settings.REQUEST}\n\n"
-        f"Original: {line}\nRewritten:")
+        f"Original: {line}\nRewritten:"
+    )
     messages = [{"role": "user", "content": base}]
     prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     enc = tokenizer(prompt, return_tensors="pt").to(model.device)
     if "token_type_ids" in enc:
         del enc["token_type_ids"]
     torch.cuda.empty_cache()
-    streamer = CaptureStreamer(tokenizer, skip_prompt=True, stop_str=stop_strs)
-    model.generate(**enc, streamer=streamer, **gen_kwargs)
-    print()
+
+    output_ids = model.generate(**enc, **gen_kwargs)
+    output_text = tokenizer.decode(output_ids[0][enc['input_ids'].shape[-1]:], skip_special_tokens=True)
+    return output_text.strip()
 
 def main():
     model, tokenizer = load_model_and_tokenizer()
-    stop_sequences, stop_strs = get_stop_sequences(tokenizer)
+    stop_sequences = get_stop_sequences(tokenizer)
     gen_kwargs = get_gen_kwargs(tokenizer, stop_sequences)
-    with open("input.txt", "r", encoding="utf-8") as infile:
+
+    with open("input.txt", "r", encoding="utf-8") as infile, open("output.txt", "w", encoding="utf-8") as outfile:
         for line in infile:
             line = line.strip()
             if not line:
                 continue
-            process_line(line, model, tokenizer, gen_kwargs, stop_strs)
+            output = process_line(line, model, tokenizer, gen_kwargs)
+            print(output)
+            outfile.write(output + "\n")
 
 if __name__ == "__main__":
     main()
+
