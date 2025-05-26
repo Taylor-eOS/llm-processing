@@ -1,1 +1,3 @@
-REQUEST = "Rewrite the following to be about bears instead."
+REQUEST = "Rewrite this sentence into ghetto slang."
+MEMORY = False
+PRINT = True

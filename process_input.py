@@ -3,11 +3,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, StoppingCriteria, 
 import settings
 
 def load_model_and_tokenizer():
-    model = AutoModelForCausalLM.from_pretrained(
-        "trillionlabs/Trillion-7B-preview",
-        torch_dtype=torch.bfloat16,
-        device_map="auto"
-    )
+    model = AutoModelForCausalLM.from_pretrained("trillionlabs/Trillion-7B-preview", torch_dtype=torch.bfloat16, device_map="auto")
     tokenizer = AutoTokenizer.from_pretrained("trillionlabs/Trillion-7B-preview")
     return model, tokenizer
 
@@ -26,29 +22,26 @@ def get_stop_sequences(tokenizer):
 
 def get_gen_kwargs(tokenizer, stop_sequences):
     return {
-        "max_new_tokens": 2048,
+        "max_new_tokens": 1024,
         "eos_token_id": tokenizer.eos_token_id,
         "pad_token_id": tokenizer.eos_token_id,
         "do_sample": True,
         "temperature": 0.7,
         "top_p": 0.9,
-        "stopping_criteria": StoppingCriteriaList([StopOnTokens(stop_sequences)]),
-    }
+        "stopping_criteria": StoppingCriteriaList([StopOnTokens(stop_sequences)]),}
 
-def process_line(line, model, tokenizer, gen_kwargs):
-    base = (
-        "You are a rewriting model. Output only the rewritten text, "
-        "no explanations or prefixes.\n"
-        f"{settings.REQUEST}\n\n"
-        f"Original: {line}\nRewritten:"
-    )
+def process_line(line, model, tokenizer, gen_kwargs, memory=None, use_memory=False):
+    base = "You are a rewriting model. Output only the rewritten text, no explanations or prefixes.\n"
+    if use_memory and memory:
+        prev_original, prev_rewrite = memory
+        base += f"Original: {prev_original}\nRewritten: {prev_rewrite}\n"
+    base += f"{settings.REQUEST}\nOriginal: {line}\nRewritten:"
     messages = [{"role": "user", "content": base}]
     prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     enc = tokenizer(prompt, return_tensors="pt").to(model.device)
     if "token_type_ids" in enc:
         del enc["token_type_ids"]
     torch.cuda.empty_cache()
-
     output_ids = model.generate(**enc, **gen_kwargs)
     output_text = tokenizer.decode(output_ids[0][enc['input_ids'].shape[-1]:], skip_special_tokens=True)
     return output_text.strip()
@@ -57,15 +50,18 @@ def main():
     model, tokenizer = load_model_and_tokenizer()
     stop_sequences = get_stop_sequences(tokenizer)
     gen_kwargs = get_gen_kwargs(tokenizer, stop_sequences)
-
+    use_memory = settings.MEMORY
+    memory = None
     with open("input.txt", "r", encoding="utf-8") as infile, open("output.txt", "w", encoding="utf-8") as outfile:
         for line in infile:
             line = line.strip()
             if not line:
                 continue
-            output = process_line(line, model, tokenizer, gen_kwargs)
+            output = process_line(line, model, tokenizer, gen_kwargs, memory, use_memory)
             print(output)
             outfile.write(output + "\n")
+            if use_memory:
+                memory = (line, output)
 
 if __name__ == "__main__":
     main()
