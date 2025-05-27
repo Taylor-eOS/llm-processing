@@ -34,8 +34,9 @@ def process_line(line, model, tokenizer, gen_kwargs, memory=None, use_memory=Fal
     base = "You are a rewriting model. Output only the rewritten text, no explanations or prefixes.\n"
     if use_memory and memory:
         prev_original, prev_rewrite = memory
-        base += f"Original: {prev_original}\nRewritten: {prev_rewrite}\n"
-    base += f"{settings.REQUEST}\nOriginal: {line}\nRewritten:"
+        base += f"Context: Previous original: \"{prev_original}\", Previous rewritten: \"{prev_rewrite}\"\n"
+    base += f"Task: {settings.REQUEST}\nOriginal sentence: \"{line}\"\nRewritten:"
+    if settings.PRINT: print(base)
     messages = [{"role": "user", "content": base}]
     prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     enc = tokenizer(prompt, return_tensors="pt").to(model.device)
