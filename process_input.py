@@ -3,8 +3,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, StoppingCriteria, 
 import settings
 
 def load_model_and_tokenizer():
-    model = AutoModelForCausalLM.from_pretrained(settings.MODEL_NAME, torch_dtype=torch.bfloat16, device_map="auto")
-    tokenizer = AutoTokenizer.from_pretrained(settings.MODEL_NAME)
+    model = AutoModelForCausalLM.from_pretrained(settings.MODEL_NAME, torch_dtype=torch.bfloat16, device_map="auto", trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(settings.MODEL_NAME, trust_remote_code=True)
     return model, tokenizer
 
 class StopOnTokens(StoppingCriteria):
