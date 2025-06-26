@@ -3,8 +3,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, StoppingCriteria, 
 import settings
 
 def load_model_and_tokenizer():
-    model = AutoModelForCausalLM.from_pretrained("trillionlabs/Trillion-7B-preview", torch_dtype=torch.bfloat16, device_map="auto")
-    tokenizer = AutoTokenizer.from_pretrained("trillionlabs/Trillion-7B-preview")
+    model = AutoModelForCausalLM.from_pretrained(settings.MODEL_NAME, torch_dtype=torch.bfloat16, device_map="auto")
+    tokenizer = AutoTokenizer.from_pretrained(settings.MODEL_NAME)
     return model, tokenizer
 
 class StopOnTokens(StoppingCriteria):
@@ -22,7 +22,7 @@ def get_stop_sequences(tokenizer):
 
 def get_gen_kwargs(tokenizer, stop_sequences):
     return {
-        "max_new_tokens": 1024,
+        "max_new_tokens": settings.MAX_TOKENS,
         "eos_token_id": tokenizer.eos_token_id,
         "pad_token_id": tokenizer.eos_token_id,
         "do_sample": True,
@@ -31,11 +31,11 @@ def get_gen_kwargs(tokenizer, stop_sequences):
         "stopping_criteria": StoppingCriteriaList([StopOnTokens(stop_sequences)]),}
 
 def process_line(line, model, tokenizer, gen_kwargs, memory=None, use_memory=False):
-    base = "You are a rewriting model. Output only the rewritten text, no explanations or prefixes.\n"
+    base = "You are a text processing model. Output only the processed text itself, no other explanations or comments.\n"
     if use_memory and memory:
         prev_original, prev_rewrite = memory
-        base += f"Context: Previous original: \"{prev_original}\", Previous rewritten: \"{prev_rewrite}\"\n"
-    base += f"Task: {settings.REQUEST}\nOriginal sentence: \"{line}\"\nRewritten:"
+        base += f"Context: Previous input: \"{prev_original}\", Previous output: \"{prev_rewrite}\"\n"
+    base += f"Task: {settings.REQUEST}\nInput sentence: \"{line}\"\nProcessed:"
     if settings.PRINT: print(base)
     messages = [{"role": "user", "content": base}]
     prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
