@@ -34,7 +34,7 @@ def get_gen_kwargs(tokenizer, stop_sequences):
         "stopping_criteria": StoppingCriteriaList([StopOnTokens(stop_sequences)]),}
 
 def process_line(line, model, tokenizer, gen_kwargs, memory=None, use_memory=False):
-    base = "You are a text processing model. Output only the processed text itself, no other explanations or comments.\n"
+    base = settings.BASE
     if use_memory and memory:
         prev_original, prev_rewrite = memory
         base += f"Context: Previous input: \"{prev_original}\", Previous output: \"{prev_rewrite}\"\n"
@@ -57,17 +57,46 @@ def main():
     use_memory = settings.MEMORY
     memory = None
     with open(input_file, "r", encoding="utf-8") as infile, open(output_file, "w", encoding="utf-8") as outfile:
-        for line in infile:
-            line = line.strip()
-            if not line:
-                continue
-            output = process_line(line, model, tokenizer, gen_kwargs, memory, use_memory)
-            print(output)
-            outfile.write(output + "\n")
-            outfile.flush()
-            if use_memory:
-                memory = (line, output)
+        if settings.SEGMENT_MODE:
+            paragraph_lines = []
+            for raw_line in infile:
+                line = raw_line.rstrip("\n")
+                if line.strip() == "":
+                    if paragraph_lines:
+                        paragraph = "\n".join(paragraph_lines)
+                        output = process_line(paragraph, model, tokenizer, gen_kwargs, memory, use_memory)
+                        print(output)
+                        outfile.write(output + "\n\n")
+                        outfile.flush()
+                        if use_memory:
+                            memory = (paragraph, output)
+                        paragraph_lines = []
+                    else:
+                        outfile.write("\n")
+                        outfile.flush()
+                else:
+                    paragraph_lines.append(line)
+            if paragraph_lines:
+                paragraph = "\n".join(paragraph_lines)
+                output = process_line(paragraph, model, tokenizer, gen_kwargs, memory, use_memory)
+                print(output)
+                outfile.write(output + "\n")
+                outfile.flush()
+                if use_memory:
+                    memory = (paragraph, output)
+        else:
+            for raw_line in infile:
+                line = raw_line.rstrip("\n")
+                if line.strip() == "":
+                    outfile.write("\n")
+                    outfile.flush()
+                else:
+                    output = process_line(line, model, tokenizer, gen_kwargs, memory, use_memory)
+                    print(output)
+                    outfile.write(output + "\n")
+                    outfile.flush()
+                    if use_memory:
+                        memory = (line, output)
 
 if __name__ == "__main__":
     main()
-
