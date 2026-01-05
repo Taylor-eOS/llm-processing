@@ -2,6 +2,9 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, StoppingCriteria, StoppingCriteriaList
 import settings
 
+input_file = "input.txt"
+output_file = "output.txt"
+
 def load_model_and_tokenizer():
     model = AutoModelForCausalLM.from_pretrained(settings.MODEL_NAME, torch_dtype=torch.bfloat16, device_map="auto", trust_remote_code=True)
     tokenizer = AutoTokenizer.from_pretrained(settings.MODEL_NAME, trust_remote_code=True)
@@ -53,7 +56,7 @@ def main():
     gen_kwargs = get_gen_kwargs(tokenizer, stop_sequences)
     use_memory = settings.MEMORY
     memory = None
-    with open("input.txt", "r", encoding="utf-8") as infile, open("output.txt", "w", encoding="utf-8") as outfile:
+    with open(input_file, "r", encoding="utf-8") as infile, open(output_file, "w", encoding="utf-8") as outfile:
         for line in infile:
             line = line.strip()
             if not line:
@@ -61,6 +64,7 @@ def main():
             output = process_line(line, model, tokenizer, gen_kwargs, memory, use_memory)
             print(output)
             outfile.write(output + "\n")
+            outfile.flush()
             if use_memory:
                 memory = (line, output)
 
