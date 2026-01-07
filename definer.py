@@ -44,7 +44,7 @@ class CleanStreamer(TextStreamer):
             print()
 
 def get_definition(word, model, tokenizer, gen_kwargs):
-    prompt_text = f"You are tool to define words. Provide a clear and concise definition for the word or phrase: \"{word.strip()}\"\nDefinition:"
+    prompt_text = f"Provide a clear and concise definition for the word or phrase: \"{word.strip()}\"\nDefinition:"
     enc = tokenizer(prompt_text, return_tensors="pt").to(model.device)
     if "token_type_ids" in enc:
         del enc["token_type_ids"]
@@ -72,7 +72,7 @@ def main():
             if word == "":
                 print("Goodbye!")
                 break
-            print("Definition: ", end="", flush=True)
+            print("Definition:", end="", flush=True)
             gen_kwargs = get_gen_kwargs(tokenizer, None)
             get_definition(word, model, tokenizer, gen_kwargs)
             print()
