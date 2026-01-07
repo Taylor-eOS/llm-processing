@@ -1,5 +1,5 @@
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, StoppingCriteria, StoppingCriteriaList
+from transformers import AutoModelForCausalLM, AutoTokenizer, StoppingCriteria, StoppingCriteriaList, TextStreamer
 import settings
 import sys
 
@@ -21,7 +21,7 @@ class StopOnTokens(StoppingCriteria):
         return False
 
 def get_stop_sequences(tokenizer):
-    stop_strings = ["\nYou:", "\nUser:", "\nAssistant:", "\n</s>"]
+    stop_strings = ["\nYou:", "\nUser:", "\nAssistant:", "\n</s>", "[|endofturn|]"]
     return [tokenizer.encode(s, add_special_tokens=False) for s in stop_strings if tokenizer.encode(s, add_special_tokens=False)]
 
 def get_gen_kwargs(tokenizer, stop_sequences):
@@ -31,31 +31,35 @@ def get_gen_kwargs(tokenizer, stop_sequences):
         "temperature": 0.6,
         "top_p": 0.9,
         "repetition_penalty": 1.2,
-        "stopping_criteria": StoppingCriteriaList([StopOnTokens(stop_sequences)]),
     }
 
+class CleanStreamer(TextStreamer):
+    def __init__(self, tokenizer, skip_prompt=False):
+        super().__init__(tokenizer, skip_prompt=skip_prompt)
+
+    def on_finalized_text(self, text, stream_end=False):
+        cleaned = text.replace("[|endofturn|]", "")
+        print(cleaned, end="", flush=True)
+        if stream_end:
+            print()
+
 def get_definition(word, model, tokenizer, gen_kwargs):
-    prompt_text = f"Provide a clear and concise definition for the word or phrase: \"{word.strip()}\"\nDefinition:"
+    prompt_text = f"You are tool to define words. Provide a clear and concise definition for the word or phrase: \"{word.strip()}\"\nDefinition:"
     enc = tokenizer(prompt_text, return_tensors="pt").to(model.device)
     if "token_type_ids" in enc:
         del enc["token_type_ids"]
     torch.cuda.empty_cache()
-    output_ids = model.generate(**enc, **gen_kwargs)
-    generated = output_ids[0][enc['input_ids'].shape[-1]:]
-    output_text = tokenizer.decode(generated, skip_special_tokens=True).strip()
-    if output_text.lower().startswith(word.strip().lower()):
-        parts = output_text.split(" ", 1)
-        if len(parts) > 1:
-            output_text = parts[1].strip()
-        else:
-            output_text = ""
-    return output_text
+    stop_sequences = get_stop_sequences(tokenizer)
+    stop_criteria = StopOnTokens(stop_sequences)
+    streamer = CleanStreamer(tokenizer, skip_prompt=True)
+    generation_kwargs = gen_kwargs.copy()
+    generation_kwargs["streamer"] = streamer
+    generation_kwargs["stopping_criteria"] = StoppingCriteriaList([stop_criteria])
+    model.generate(**enc, **generation_kwargs)
 
 def main():
-    print("Word Definer Tool - type a word or short phrase, press Enter for definition. Empty line to quit.\n")
+    print("Word Definer Tool\nType a word or short phrase, press Enter for definition. Empty line to quit.\n")
     model, tokenizer = load_model_and_tokenizer()
-    stop_sequences = get_stop_sequences(tokenizer)
-    gen_kwargs = get_gen_kwargs(tokenizer, stop_sequences)
     
     try:
         while True:
@@ -68,8 +72,10 @@ def main():
             if word == "":
                 print("Goodbye!")
                 break
-            definition = get_definition(word, model, tokenizer, gen_kwargs)
-            print(f"Definition: {definition}\n")
+            print("Definition: ", end="", flush=True)
+            gen_kwargs = get_gen_kwargs(tokenizer, None)
+            get_definition(word, model, tokenizer, gen_kwargs)
+            print()
     except KeyboardInterrupt:
         print("\nGoodbye!")
     
