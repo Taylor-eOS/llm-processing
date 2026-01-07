@@ -33,11 +33,13 @@ def get_gen_kwargs(tokenizer, stop_sequences):
         "top_p": 0.9,
         "stopping_criteria": StoppingCriteriaList([StopOnTokens(stop_sequences)]),}
 
-def process_line(line, model, tokenizer, gen_kwargs, memory=None, use_memory=False):
+def process_line(line, model, tokenizer, gen_kwargs, memory=None, use_memory=False, use_simple_memory=False):
     base = settings.BASE
-    if use_memory and memory:
-        prev_original, prev_rewrite = memory
-        base += f"Context: Previous input: \"{prev_original}\", Previous output: \"{prev_rewrite}\"\n"
+    if memory:
+        if use_memory:
+            base += f"Context: Previous input: \"{memory[0]}\", Previous output: \"{memory[1]}\"\n"
+        elif use_simple_memory:
+            base += f"Context: Previous output: \"{memory[1]}\"\n"
     base += f"Task: {settings.REQUEST}\nInput sentence: \"{line}\"\nProcessed:"
     if settings.PRINT: print(base)
     messages = [{"role": "user", "content": base}]
@@ -51,10 +53,13 @@ def process_line(line, model, tokenizer, gen_kwargs, memory=None, use_memory=Fal
     return output_text.strip()
 
 def main():
+    use_memory = settings.MEMORY
+    use_simple_memory = settings.SIMPLE_MEMORY
+    if use_memory and use_simple_memory:
+        raise ValueError("Cannot enable both MEMORY and SIMPLE_MEMORY at the same time. Choose one memory mode or neither.")
     model, tokenizer = load_model_and_tokenizer()
     stop_sequences = get_stop_sequences(tokenizer)
     gen_kwargs = get_gen_kwargs(tokenizer, stop_sequences)
-    use_memory = settings.MEMORY
     memory = None
     with open(input_file, "r", encoding="utf-8") as infile, open(output_file, "w", encoding="utf-8") as outfile:
         if settings.SEGMENT_MODE:
@@ -64,11 +69,11 @@ def main():
                 if line.strip() == "":
                     if paragraph_lines:
                         paragraph = "\n".join(paragraph_lines)
-                        output = process_line(paragraph, model, tokenizer, gen_kwargs, memory, use_memory)
+                        output = process_line(paragraph, model, tokenizer, gen_kwargs, memory, use_memory, use_simple_memory)
                         print(output)
                         outfile.write(output + "\n\n")
                         outfile.flush()
-                        if use_memory:
+                        if use_memory or use_simple_memory:
                             memory = (paragraph, output)
                         paragraph_lines = []
                     else:
@@ -78,11 +83,12 @@ def main():
                     paragraph_lines.append(line)
             if paragraph_lines:
                 paragraph = "\n".join(paragraph_lines)
-                output = process_line(paragraph, model, tokenizer, gen_kwargs, memory, use_memory)
+                output = process_line(paragraph, model, tokenizer, gen_kwargs, memory, use_memory, use_simple_memory)
                 print(output)
+                print()
                 outfile.write(output + "\n")
                 outfile.flush()
-                if use_memory:
+                if use_memory or use_simple_memory:
                     memory = (paragraph, output)
         else:
             for raw_line in infile:
@@ -91,11 +97,12 @@ def main():
                     outfile.write("\n")
                     outfile.flush()
                 else:
-                    output = process_line(line, model, tokenizer, gen_kwargs, memory, use_memory)
+                    output = process_line(line, model, tokenizer, gen_kwargs, memory, use_memory, use_simple_memory)
                     print(output)
+                    print()
                     outfile.write(output + "\n")
                     outfile.flush()
-                    if use_memory:
+                    if use_memory or use_simple_memory:
                         memory = (line, output)
 
 if __name__ == "__main__":

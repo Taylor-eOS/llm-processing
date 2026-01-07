@@ -2,8 +2,9 @@
 MODEL_NAME = "LGAI-EXAONE/EXAONE-3.5-2.4B-Instruct"
 MAX_TOKENS = 1024
 SEGMENT_MODE = True
-BASE = "You are a text processing model. Output only the processed text itself, do not add other explanations or comments.\n"
-REQUEST = "Write one sentence that presentes the central theme of this segment, like a summary, but focus on what is stark or unusual."
+BASE = "You are a sequential text processing tool. Output only the requested text itself directly, do not add other explanations or comments.\n"
+REQUEST = "Condense the segment into one short, clear sentence that captures its main point. Output only that sentence. Focus on the central theme instead of exhaustive accuracy. Explain it in simple language."
 MEMORY = False
+SIMPLE_MEMORY = True
 PRINT = True
 THINKING = False
