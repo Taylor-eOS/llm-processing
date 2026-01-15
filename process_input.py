@@ -34,13 +34,16 @@ def get_gen_kwargs(tokenizer, stop_sequences):
         "stopping_criteria": StoppingCriteriaList([StopOnTokens(stop_sequences)]),}
 
 def process_line(line, model, tokenizer, gen_kwargs, memory=None, use_memory=False, use_simple_memory=False):
-    base = settings.BASE
+    parts = []
     if memory:
         if use_memory:
-            base += f"Context: Previous input: \"{memory[0]}\", Previous output: \"{memory[1]}\"\n"
+            parts.append(f"\nContext: Previous input: \"{memory[0]}\", Previous output: \"{memory[1]}\"")
         elif use_simple_memory:
-            base += f"Context: Previous output: \"{memory[1]}\"\n"
-    base += f"Task: {settings.REQUEST}\nInput sentence: \"{line}\"\nProcessed:"
+            parts.append(f"\nContext: Previous output: \"{memory[1]}\"")
+    parts.append(f"Input content: \"{line}\"")
+    parts.append(settings.BASE)
+    parts.append(f"Task: {settings.REQUEST}\nProcessed:")
+    base = "\n".join(parts)
     if settings.PRINT: print(base)
     messages = [{"role": "user", "content": base}]
     prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
