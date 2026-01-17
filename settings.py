@@ -1,9 +1,9 @@
-#MODEL_NAME = "trillionlabs/Trillion-7B-preview"
-MODEL_NAME = "LGAI-EXAONE/EXAONE-3.5-2.4B-Instruct"
+#MODEL_NAME = 'trillionlabs/Trillion-7B-preview'
+MODEL_NAME = 'LGAI-EXAONE/EXAONE-3.5-2.4B-Instruct'
 MAX_TOKENS = 1024
 SEGMENT_MODE = True
-BASE = "You are a sequential text processing tool. Output only the requested text itself directly, do not add other explanations or comments.\n"
-REQUEST = "Condense the segment into one short, clear sentence that captures its main point. Output only that sentence. Focus on the central theme instead of exhaustive accuracy. Explain it in simple language."
+BASE = 'Role: You are a sequential text processing tool. Output only the requested text itself, do not add any other explanations or comments.'
+REQUEST = 'Condense this book segment into a single clear sentence, written in simple readable language. Output exactly one short sentence that captures the central causal mechanism. Never use any introductory phrase whatsoever: no “the core mechanism was”, no “basically”, no “it was about”, no “the point is”, no “the text argues”, no “essentially”.'
 MEMORY = False
 SIMPLE_MEMORY = True
 PRINT = True
