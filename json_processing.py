@@ -51,7 +51,7 @@ def process_text(text, model, tokenizer, gen_kwargs, memory=None, use_memory=Fal
             parts.append(f"\nContext: Previous output: \"{memory[1]}\"")
     parts.append(settings.BASE)
     parts.append(f"Task: {settings.REQUEST_JSON[:80]}...")
-    parts.append(f"Input content: \"{text}\"")
+    parts.append(f"Input content: {text}")
     parts.append(f"Processed:")
     base = "\n".join(parts)
     if settings.PRINT:
