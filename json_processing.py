@@ -50,8 +50,9 @@ def process_text(text, model, tokenizer, gen_kwargs, memory=None, use_memory=Fal
         elif use_simple_memory:
             parts.append(f"\nContext: Previous output: \"{memory[1]}\"")
     parts.append(settings.BASE)
-    parts.append(f"Task: {settings.REQUEST_JSON[:80]}...\nProcessed:")
+    parts.append(f"Task: {settings.REQUEST_JSON[:80]}...")
     parts.append(f"Input content: \"{text}\"")
+    parts.append(f"Processed:")
     base = "\n".join(parts)
     if settings.PRINT:
         print(base)
@@ -108,7 +109,7 @@ def main():
                 output_text = process_text(input_text, model, tokenizer, gen_kwargs, memory, use_memory, use_simple_memory)
                 if use_memory or use_simple_memory:
                     memory = (input_text, output_text)
-            print(f"Line {line_num}: {output_text}")
+            print(f"{output_text}")
             print()
             data["text"] = output_text
             outfile.write(json.dumps(data, ensure_ascii=False) + "\n")
