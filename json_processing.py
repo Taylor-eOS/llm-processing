@@ -1,56 +1,67 @@
 import json
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
+import pysbd
 from process_input import load_model_and_tokenizer, get_stop_sequences, get_gen_kwargs, StopOnTokens
 import settings
 
 input_file = "input.json"
 output_file = "output.json"
 
-def split_text_smart(text, max_chars):
-    if len(text) <= max_chars:
-        return [text]
-    total_len = len(text)
-    num_chunks = (total_len + max_chars - 1) // max_chars
-    if num_chunks * max_chars - total_len < max_chars * 0.3:
-        num_chunks += 1
-    chunk_size = total_len // num_chunks
+def split_text_into_sentences(text):
+    text = text.strip()
+    if not text:
+        return []
+    segmenter = pysbd.Segmenter(language="en", clean=True)
+    sentences = segmenter.segment(text)
+    result = []
+    for s in sentences:
+        s = s.strip()
+        if s:
+            result.append(s)
+    if not result:
+        result = [text]
+    return result
+
+def split_long_sentence(sentence, max_chars):
+    if len(sentence) <= max_chars:
+        return [sentence]
     chunks = []
-    pos = 0
-    while pos < total_len:
-        if pos + chunk_size >= total_len:
-            chunks.append(text[pos:])
+    start = 0
+    length = len(sentence)
+    while start < length:
+        end = min(start + max_chars, length)
+        if end == length:
+            chunk = sentence[start:].strip()
+            if chunk:
+                chunks.append(chunk)
             break
-        end_pos = pos + chunk_size
-        search_start = max(pos + int(chunk_size * 0.8), pos + 1)
-        search_end = min(end_pos + int(chunk_size * 0.2), total_len)
-        best_break = end_pos
-        for i in range(search_end, search_start - 1, -1):
-            if i < total_len and text[i] in '.!?\n':
-                if i + 1 < total_len and text[i + 1] == ' ':
-                    best_break = i + 1
-                    break
-                else:
-                    best_break = i + 1
-                    break
-        if best_break == end_pos:
-            for i in range(search_end, search_start - 1, -1):
-                if i < total_len and text[i] == ' ':
-                    best_break = i + 1
-                    break
-        chunks.append(text[pos:best_break].strip())
-        pos = best_break
+        split_pos = end
+        found_break = False
+        for pos in range(end - 1, start, -1):
+            if sentence[pos].isspace():
+                split_pos = pos
+                found_break = True
+                break
+        if not found_break:
+            split_pos = end
+        chunk = sentence[start:split_pos].strip()
+        if chunk:
+            chunks.append(chunk)
+        start = split_pos
+        while start < length and sentence[start].isspace():
+            start += 1
     return chunks
 
 def process_text(text, model, tokenizer, gen_kwargs, memory=None, use_memory=False, use_simple_memory=False):
     parts = []
     if memory:
         if use_memory:
-            parts.append(f"\nContext: Previous input: \"{memory[0]}\", Previous output: \"{memory[1]}\"")
+            parts.append(f"\nContext: Previous input: {memory[0]}, Previous output: {memory[1]}")
         elif use_simple_memory:
-            parts.append(f"\nContext: Previous output: \"{memory[1]}\"")
+            parts.append(f"\nContext: Previous output: {memory[1]}")
     parts.append(settings.BASE)
-    parts.append(f"Task: {settings.REQUEST_JSON[:80]}...")
+    parts.append(f"Task: {settings.REQUEST_JSON}")
     parts.append(f"Input content: {text}")
     parts.append(f"Processed:")
     base = "\n".join(parts)
@@ -95,20 +106,23 @@ def main():
                 outfile.flush()
                 continue
             input_text = data["text"]
-            max_chars = getattr(settings, 'MAX_TEXT_CHARS', None)
-            if max_chars and len(input_text) > max_chars:
-                chunks = split_text_smart(input_text, max_chars)
-                output_chunks = []
-                for chunk in chunks:
-                    chunk_output = process_text(chunk, model, tokenizer, gen_kwargs, memory, use_memory, use_simple_memory)
-                    output_chunks.append(chunk_output)
+            sentences = split_text_into_sentences(input_text)
+            output_sentences = []
+            max_chars = settings.MAX_TEXT_CHARS
+            for sentence in sentences:
+                if max_chars and len(sentence) > max_chars:
+                    sub_chunks = split_long_sentence(sentence, max_chars)
+                    for chunk in sub_chunks:
+                        chunk_output = process_text(chunk, model, tokenizer, gen_kwargs, memory, use_memory, use_simple_memory)
+                        output_sentences.append(chunk_output)
+                        if use_memory or use_simple_memory:
+                            memory = (chunk, chunk_output)
+                else:
+                    sentence_output = process_text(sentence, model, tokenizer, gen_kwargs, memory, use_memory, use_simple_memory)
+                    output_sentences.append(sentence_output)
                     if use_memory or use_simple_memory:
-                        memory = (chunk, chunk_output)
-                output_text = " ".join(output_chunks)
-            else:
-                output_text = process_text(input_text, model, tokenizer, gen_kwargs, memory, use_memory, use_simple_memory)
-                if use_memory or use_simple_memory:
-                    memory = (input_text, output_text)
+                        memory = (sentence, sentence_output)
+            output_text = " ".join(output_sentences)
             print(f"{output_text}")
             print()
             data["text"] = output_text
