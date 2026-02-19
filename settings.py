@@ -1,5 +1,6 @@
 #MODEL_NAME = 'trillionlabs/Trillion-7B-preview'
-MODEL_NAME = 'LGAI-EXAONE/EXAONE-3.5-2.4B-Instruct'
+#MODEL_NAME = 'LGAI-EXAONE/EXAONE-3.5-2.4B-Instruct'
+MODEL_NAME = "Qwen/Qwen2.5-3B-Instruct"
 MAX_TOKENS = 1024
 SEGMENT_MODE = True
 BASE = 'Role: You are a sequential text processing tool. Output only the requested text itself, do not add any other explanations or comments.'
